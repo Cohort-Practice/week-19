@@ -1,9 +1,12 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const ws_1 = require("ws");
-const wss = new ws_1.WebSocketServer({ port: 8080 });
-wss.on("connection", (socket) => {
-    console.log("user connected");
-    socket.send("hi there");
+import { WebSocketServer, WebSocket } from 'ws';
+const wss = new WebSocketServer({ port: 8080 });
+wss.on('connection', (socket) => {
+    console.log('user connected');
+    setInterval(() => {
+        socket.send("Current price of solana is " + Math.random());
+    }, 2000);
+    socket.on("message", (e) => {
+        console.log(e.toString());
+    });
 });
 //# sourceMappingURL=index.js.map
