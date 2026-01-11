@@ -2,19 +2,82 @@ import { WebSocketServer, WebSocket } from "ws";
 
 const wss = new WebSocketServer({ port: 8080 });
 
-let userCount = 0;
-let allSockets: WebSocket[] = [];
+interface User {
+  socket: WebSocket;
+  username: string;
+  roomId: string;
+}
 
-wss.on("connection", (socket: WebSocket) => {
-  allSockets.push(socket);
+interface ChatMessage {
+  username: string;
+  message: string;
+}
 
-  userCount = userCount + 1;
-  console.log("user connected #" + userCount);
+let users: User[] = [];
+let roomMessages: Record<string, ChatMessage[]> = {};
+
+wss.on("connection", (socket) => {
+  console.log("New client connected");
 
   socket.on("message", (message) => {
-    console.log("message received " + message.toString());
-    for (let i = 0; i < allSockets.length; i++) allSockets.forEach(s =>{
-        s.send(message.toString() + ": received by server") ;
-    })
+    try {
+      const data = JSON.parse(message.toString());
+
+
+      if (data.type === "join") {
+        const { username, roomId } = data.payload;
+        if (!username || !roomId) return;
+
+        users.push({ socket, username, roomId });
+
+        // Initialize room history if not exists
+        if (!roomMessages[roomId]) {
+          roomMessages[roomId] = [];
+        }
+
+        socket.send(
+          JSON.stringify({
+            type: "history",
+            payload: roomMessages[roomId],
+          })
+        );
+
+        console.log(`${username} joined room ${roomId}`);
+        return;
+      }
+
+      if (data.type === "chat") {
+        const currentUser = users.find((u) => u.socket === socket);
+        if (!currentUser) return;
+
+        const chatMessage = {
+          username: currentUser.username,
+          message: data.payload.message,
+        };
+
+       
+        roomMessages[currentUser.roomId].push(chatMessage);
+
+        users
+          .filter((u) => u.roomId === currentUser.roomId)
+          .forEach((u) =>
+            u.socket.send(
+              JSON.stringify({
+                type: "chat",
+                payload: chatMessage,
+              })
+            )
+          );
+      }
+    } catch (err) {
+      console.error("Invalid message", err);
+    }
+  });
+
+  socket.on("close", () => {
+    users = users.filter((u) => u.socket !== socket);
+    console.log("Client disconnected");
   });
 });
+
+console.log(" the server is running ");
